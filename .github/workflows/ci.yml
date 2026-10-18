@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+  # setup-gradle only writes cache entries from the default branch, and neither pull_request nor
+  # merge_group runs there. Without this trigger every job starts from a cold Gradle User Home.
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: Check (${{ matrix.os }}, JDK ${{ matrix.java }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The lowest supported JDK is the one that catches accidental use of newer JDK APIs in
+          # bytecode that claims to target Java 21.
+          - os: ubuntu-latest
+            java: '21'
+          - os: ubuntu-latest
+            java: '25'
+          # Path handling differs on Windows, so all three are built.
+          - os: macos-latest
+            java: '25'
+          - os: windows-latest
+            java: '25'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: temurin
+
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      - run: ./gradlew build --stacktrace
+
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: reports-${{ matrix.os }}-jdk${{ matrix.java }}
+          path: |
+            build/reports/
+            build/test-results/
+          if-no-files-found: ignore
