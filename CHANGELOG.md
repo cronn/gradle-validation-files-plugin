@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0
 
 - Initial release: declares the validation files as inputs and outputs of `Test` tasks and of
   tasks registered with `producedBy`, deletes the output files on `clean`, adds
