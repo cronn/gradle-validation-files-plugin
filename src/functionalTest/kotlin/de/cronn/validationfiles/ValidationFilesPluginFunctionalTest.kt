@@ -81,7 +81,13 @@ class ValidationFilesPluginFunctionalTest {
       include("app")
       """,
     )
-    fixture.write("app/build.gradle.kts", """plugins { id("de.cronn.validation-files") }""")
+    fixture.write(
+      "app/build.gradle.kts",
+      """plugins {
+        base
+        id("de.cronn.validation-files")
+      }""",
+    )
     fixture.write("app/data/test/validation/A.txt", "A")
 
     val result = fixture.runner(":app:check").buildAndFail()
@@ -277,6 +283,53 @@ class ValidationFilesPluginFunctionalTest {
     assertThat(fixture.file("data/test/output")).doesNotExist()
     assertThat(fixture.file("data/test/tmp")).doesNotExist()
     assertThat(fixture.file("data/test/validation/A.txt")).exists()
+  }
+
+  @Test
+  fun `hooks into check and clean when the build registers them itself`() {
+    fixture.writeBuildWithProducer(
+      listOf("A.txt"),
+      """
+      tasks.register("check")
+      tasks.register("clean")
+      """,
+      plugins = "",
+    )
+    fixture.writeValidationFile("A.txt")
+    fixture.writeValidationFile("B.txt")
+
+    assertThat(fixture.runner("check").buildAndFail().output)
+      .contains("• data/test/validation/B.txt")
+      .doesNotContain("No check task")
+
+    fixture.write("data/test/tmp/A.txt", "A")
+    fixture.runner("clean").build()
+
+    assertThat(fixture.file("data/test/output")).doesNotExist()
+    assertThat(fixture.file("data/test/tmp")).doesNotExist()
+  }
+
+  @Test
+  fun `warns about a missing check task and runs the check only when called`() {
+    fixture.writeBuildWithProducer(listOf("A.txt"), plugins = "")
+    fixture.writeValidationFile("A.txt")
+
+    val result = fixture.runner("findUnusedValidationFiles").build()
+
+    assertThat(result.output)
+      .contains(
+        "No check task in root project 'project', so findUnusedValidationFiles does not run with check.",
+      )
+    assertThat(result.task(":produce")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.task(":findUnusedValidationFiles")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+  }
+
+  @Test
+  fun `does not warn about a missing check task in mode MANUAL`() {
+    fixture.writeBuildWithProducer(listOf("A.txt"), MANUAL, plugins = "")
+    fixture.writeValidationFile("A.txt")
+
+    assertThat(fixture.runner("help").build().output).doesNotContain("No check task")
   }
 
   @Test

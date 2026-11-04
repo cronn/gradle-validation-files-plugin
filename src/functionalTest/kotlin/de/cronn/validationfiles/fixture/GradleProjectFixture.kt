@@ -5,7 +5,7 @@ import org.gradle.testkit.runner.GradleRunner
 
 class GradleProjectFixture(val rootDirectory: File) {
 
-  fun writeBuild(buildScript: String = "", plugins: String = "") {
+  fun writeBuild(buildScript: String = "", plugins: String = "base") {
     write("settings.gradle.kts", """rootProject.name = "project"""")
     write(
       "build.gradle.kts",
@@ -24,9 +24,15 @@ class GradleProjectFixture(val rootDirectory: File) {
    * Writes a build with a `produce` task registered with `validationFiles.producedBy`, which writes
    * the output files [writtenFiles].
    */
-  fun writeBuildWithProducer(writtenFiles: List<String>, buildScript: String = "") {
+  fun writeBuildWithProducer(
+    writtenFiles: List<String>,
+    buildScript: String = "",
+    plugins: String = "base",
+  ) {
     writeBuild(
-      """
+      plugins = plugins,
+      buildScript =
+        """
       val produce = tasks.register("produce") {
         // A local of the task configuration, because a doLast referencing the script itself is not
         // supported by the configuration cache.

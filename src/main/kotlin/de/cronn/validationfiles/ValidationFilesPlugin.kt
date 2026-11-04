@@ -15,8 +15,6 @@ import org.gradle.plugins.ide.idea.model.IdeaModel
 public class ValidationFilesPlugin : Plugin<Project> {
 
   override fun apply(project: Project) {
-    project.pluginManager.apply(LifecycleBasePlugin::class.java)
-
     val dataDirectory = project.layout.projectDirectory.dir(DATA_DIRECTORY)
     val validationDirectory = dataDirectory.dir("validation")
     val outputDirectory = dataDirectory.dir("output")
@@ -83,15 +81,40 @@ public class ValidationFilesPlugin : Plugin<Project> {
         task.deleteTaskPath.set(deleteUnusedValidationFiles.map { it.path })
       }
 
-    project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { check ->
-      check.dependsOn(
-        mode.map {
-          if (it == UnusedFileDetectionMode.CHECK) listOf(findUnusedValidationFiles) else listOf()
-        },
-      )
-    }
-    project.tasks.named(LifecycleBasePlugin.CLEAN_TASK_NAME, Delete::class.java) { clean ->
-      clean.delete(outputDirectory, tmpDirectory)
+    val cleanValidationFilesOutput =
+      project.tasks.register("cleanValidationFilesOutput", Delete::class.java) { task ->
+        task.group = LifecycleBasePlugin.BUILD_GROUP
+        task.description = "Deletes the output and tmp files of the validation files."
+        task.delete(outputDirectory, tmpDirectory)
+      }
+
+    // Matched by name instead of applying lifecycle-base, which would collide with check or clean
+    // tasks that a build registers itself.
+    project.tasks
+      .named { it == LifecycleBasePlugin.CHECK_TASK_NAME }
+      .configureEach { check ->
+        check.dependsOn(
+          mode.map {
+            if (it == UnusedFileDetectionMode.CHECK) listOf(findUnusedValidationFiles) else listOf()
+          },
+        )
+      }
+    project.tasks
+      .named { it == LifecycleBasePlugin.CLEAN_TASK_NAME }
+      .configureEach { clean -> clean.dependsOn(cleanValidationFilesOutput) }
+
+    // Without a check task, a check of the whole build skips the project silently.
+    project.afterEvaluate {
+      if (
+        mode.get() == UnusedFileDetectionMode.CHECK &&
+          LifecycleBasePlugin.CHECK_TASK_NAME !in project.tasks.names
+      ) {
+        project.logger.warn(
+          "No check task in ${project.displayName}, so findUnusedValidationFiles does not run with " +
+            "check. Apply the base plugin, register a check task, or set " +
+            "validationFiles.unusedFileDetection.mode to MANUAL.",
+        )
+      }
     }
 
     configureIdea(project, listOf(outputDirectory, tmpDirectory))

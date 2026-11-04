@@ -22,6 +22,9 @@ The plugin then
 - fails `check` for validation files that no test wrote (`findUnusedValidationFiles`),
 - excludes `data/test/output` and `data/test/tmp` from the IntelliJ module.
 
+The plugin hooks into the `check` and `clean` tasks of the project, no matter whether a plugin such
+as `java` or the build script registers them. It does not register them itself.
+
 Continue with the section for your kind of project.
 
 ## Backend projects
@@ -93,18 +96,6 @@ flowchart LR
     check([findUnusedValidationFiles])
   end
   e2e --> verify
-```
-
-### Builds without the gradle-pnpm-plugin
-
-The plugin applies Gradle's `lifecycle-base` plugin, which registers `check`, `build`, `assemble`
-and `clean`. A build that registers one of these tasks itself configures it with
-`tasks.named(...)` instead:
-
-```kotlin
-tasks.named("check") {
-  dependsOn(lint)
-}
 ```
 
 ## Configuration
