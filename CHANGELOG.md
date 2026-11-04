@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
 - The plugin no longer applies `lifecycle-base`. It hooks into the `check` and `clean` tasks of the
   project instead, also when the build script registers them itself. A project without these
